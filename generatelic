@@ -1,0 +1,68 @@
+#!/bin/sh 
+# posicion 10 xor 12 == eth[0] 
+# posicion 60 xor 52 == eth[1]
+# posicion 85 xor 20 == eth[2]
+# posicion 93 xor 39 == eth[3]
+# posicion 28 xor 82 == eth[4]
+# posicion 43 xor 34 == eth[5]
+
+#position 10 = eth[0] xor position 12 
+
+function CalculateChecksum() {
+  ck=0
+  i=0;
+  while read -n1 char
+    do
+     if [[ $i -lt 122 ]] ; then
+
+	char=`printf '%d\n' "'$char"`
+        ck=$(( $char + $ck ))                
+     printf 'suma acumulada:%x\n'  $ck   
+     fi
+     i=$(( $i + 1 ))
+  done < license.lic
+  ck1=$[ $ck / 256 ]
+  ck1=`printf '%x' $ck1`
+    
+  ck2=$[ $ck & 0x00FF ]  
+  ck2=`printf '%x' $ck2`
+
+echo $ck1$ck2
+  ck=`printf '%x' $ck`
+   printf "\x$ck1" | dd of=license.lic bs=1 seek=123 count=1 conv=notrunc 2>/dev/null   
+   printf "\x$ck2" | dd of=license.lic bs=1 seek=122 count=1 conv=notrunc 2>/dev/null   
+}
+function Scramble() {
+  x=0
+  xored=0
+  while read -n1 char
+    do
+      if [[ $x -eq $2 ]]; then
+        xored=$(printf '%d\n' "'$char")
+        xored=$(($3 ^ $xored))
+        break
+      fi
+    x=$[ $x + 1 ]
+  done < license.lic
+  xored=`printf '%x' $xored`
+  printf "\x$xored" | dd of=license.lic bs=1 seek=$1 count=1 conv=notrunc 2>/dev/null
+}
+
+dd bs=1 count=124 </dev/urandom >license.lic 2>/dev/null
+MAC=`cat /sys/class/net/eth0/address`
+IFS=':'; 
+i=0;
+for word in $MAC; do 
+  M[$i]=$((16#$word))
+  ((i=i+1))
+done
+
+
+Scramble 10 12 ${M[0]} 
+Scramble 60 52 ${M[1]}
+Scramble 85 20 ${M[2]}
+Scramble 93 39 ${M[3]}
+Scramble 28 82 ${M[4]}
+Scramble 43 34 ${M[5]}
+
+CalculateChecksum
